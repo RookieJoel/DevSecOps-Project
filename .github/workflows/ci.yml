@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env: 
+  PROJECT_ID : swdevprac
+  REGION: asia-southeast1
+  WORKLOAD_IDENTITY_PROVIDER: 'projects/898222558375/locations/global/workloadIdentityPools/github-actions/providers/github'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 24.x
+
+    - name: Install Dependencies
+      run: npm install
+
+    - name: SonarQube Scan
+      uses: SonarSource/sonarqube-scan-action@v6
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+
+    - name: Run OWASP Dependency Check
+      uses: dependency-check/Dependency-Check_Action@main
+      
+    - name: Trivy File System Scan
+      uses: aquasecurity/trivy-action@1.1.0
+      with:
+        project : 'netflix'
+        path: '.'
+        format: 'HTML'
+        
+    - name: Upload Test results
+      uses: actions/upload-artifact@master
+      with:
+           name: Depcheck report
+           path: ${{github.workspace}}/reports
+    
+    - id: auth
+      name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v3
+      with:
+          credentials_json: "${{ secrets.SERVICE_ACCOUNT_KEY }}"
+
+    - uses: google-github-actions/setup-gcloud@v2
+      with:
+          project_id: ${{ env.PROJECT_ID }}
+
+    - name: Configure Docker to use Artifact Registry
+      run: gcloud auth configure-docker ${{env.REGION}}-docker.pkg.dev
+
+    - name: Docker Auth
+      uses: docker/login-action@v3
+      with:
+          registry: ${{ env.REGION }}-docker.pkg.dev
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
+          
+    - name: Build images
+      env:
+          IMAGE: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/${{ env.SERVICE }}:${{ github.sha }}
+      run: |
+          echo "IMAGE=${IMAGE}"
+          docker build --tag "${IMAGE}" 
+
+    - name: Trivy Image Scan
+      uses: aquasecurity/trivy-action@0.33.1
+      with:
+        image-ref: $IMAGE
+        severity: CRITICAL
+        exit: 1
+
+    - name: Deploy to Cloud Run
+      uses: google-github-actions/deploy-cloudrun@v2
+      with:
+          service: ${{ env.SERVICE }}
+          region: ${{ env.REGION }}
+          image: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/${{ env.SERVICE }}:${{ github.sha }}
+
