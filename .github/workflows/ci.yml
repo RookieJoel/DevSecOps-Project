@@ -6,82 +6,92 @@ on:
   pull_request:
     branches: [ main ]
 
-env: 
-  PROJECT_ID : swdevprac
+env:
+  PROJECT_ID: swdevprac
   REGION: asia-southeast1
-  WORKLOAD_IDENTITY_PROVIDER: 'projects/898222558375/locations/global/workloadIdentityPools/github-actions/providers/github'
+  REPO: cloud-run-source-deploy       
+  SERVICE: netflix                    
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: 24.x
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
 
-    - name: Install Dependencies
-      run: npm install
+      - name: Install Dependencies
+        run: npm install
 
-    - name: SonarQube Scan
-      uses: SonarSource/sonarqube-scan-action@v6
-      env:
-        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+      # ใช้แบบไฟล์ properties หรือ args ก็ได้ (เลือกอย่างใดอย่างหนึ่ง)
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v6
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+        with:
+          args: >
+            -Dsonar.projectKey=Netflix
+            -Dsonar.projectName=Netflix
+            -Dsonar.sources=src
+            -Dsonar.exclusions=**/node_modules/**,**/dist/**
 
-    - name: Run OWASP Dependency Check
-      uses: dependency-check/Dependency-Check_Action@main
-    
-    - id: auth
-      name: Authenticate to Google Cloud
-      uses: google-github-actions/auth@v3
-      with:
-          credentials_json: "${{ secrets.SERVICE_ACCOUNT_KEY }}"
 
-    - uses: google-github-actions/setup-gcloud@v2
-      with:
+      - name: OWASP Dependency Check
+        uses: dependency-check/Dependency-Check_Action@main
+
+      - id: auth
+        name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.SERVICE_ACCOUNT_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+        with:
           project_id: ${{ env.PROJECT_ID }}
 
-    - name: Configure Docker to use Artifact Registry
-      run: gcloud auth configure-docker ${{env.REGION}}-docker.pkg.dev
+      - name: Configure Docker for GAR
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
-    - name: Docker Auth
-      uses: docker/login-action@v3
-      with:
+      - name: Docker Auth (GAR)
+        uses: docker/login-action@v3
+        with:
           registry: ${{ env.REGION }}-docker.pkg.dev
           username: oauth2accesstoken
           password: ${{ steps.auth.outputs.access_token }}
-          
-    - name: Build images
-      env:
+
+      - name: Build image
+        env:
           IMAGE: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/${{ env.SERVICE }}:${{ github.sha }}
-      run: |
+        run: |
           echo "IMAGE=${IMAGE}"
-          docker build --tag "${IMAGE}" 
+          docker build -t "${IMAGE}" .
 
-    - name: Trivy Image Scan
-      uses: aquasecurity/trivy-action@0.33.1
-      with:
-        image-ref: $IMAGE
-        severity: CRITICAL
-        exit: 1
+      - name: Trivy Image Scan
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/${{ env.SERVICE }}:${{ github.sha }}
+          severity: CRITICAL
+          format: 'table'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          exit-code: '1'
 
-    - name: Upload Test results
-      uses: actions/upload-artifact@master
-      with:
-           name: Depcheck report
-           path: ${{github.workspace}}/reports
+      - name: Upload depcheck report
+        uses: actions/upload-artifact@v4
+        with:
+          name: depcheck-report
+          path: ${{ github.workspace }}/reports
 
-    - name: Deploy to Cloud Run
-      uses: google-github-actions/deploy-cloudrun@v2
-      with:
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
           service: ${{ env.SERVICE }}
           region: ${{ env.REGION }}
           image: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/${{ env.SERVICE }}:${{ github.sha }}
-
