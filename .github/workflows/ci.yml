@@ -71,6 +71,7 @@ jobs:
           registry: ${{ env.REGION }}-docker.pkg.dev
           username: oauth2accesstoken
           password: ${{ steps.auth.outputs.access_token }}
+      - run: echo "${{ steps.auth.outputs.access_token }}" | head -c 20
 
       - name: Build image
         env:
