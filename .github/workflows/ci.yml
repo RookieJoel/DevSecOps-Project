@@ -45,6 +45,12 @@ jobs:
 
       - name: OWASP Dependency Check
         uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: '${{ github.repository }}@${{ github.sha }}' 
+          path: '.'                                             
+          format: 'HTML'                            
+          out: 'reports'                                       
+
 
       - id: auth
         name: Authenticate to Google Cloud
