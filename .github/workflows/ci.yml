@@ -90,6 +90,9 @@ jobs:
           vuln-type: 'os,library'
           exit-code: '1'
 
+      - name: Push image to gar
+        run: docker push "$IMAGE"
+
       - name: Upload depcheck report
         uses: actions/upload-artifact@v4
         with:
