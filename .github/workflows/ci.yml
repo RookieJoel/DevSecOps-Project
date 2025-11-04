@@ -13,7 +13,7 @@ env:
   SERVICE: netflix                    
 
 jobs:
-  build:
+  build-check:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -99,10 +99,14 @@ jobs:
         with:
           name: depcheck-report
           path: ${{ github.workspace }}/reports
-
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-check
+    steps:
       - name: Deploy to Cloud Run
         uses: google-github-actions/deploy-cloudrun@v2
         with:
           service: ${{ env.SERVICE }}
           region: ${{ env.REGION }}
           image: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/${{ env.SERVICE }}:${{ github.sha }}
+          flags: --port=80
