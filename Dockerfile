@@ -1,4 +1,4 @@
-FROM 25-alpine3.21 AS builder
+FROM node:jod-alpine3.21 AS builder
 WORKDIR /app
 COPY package.json yarn.lock ./
 RUN yarn install --frozen-lockfile
