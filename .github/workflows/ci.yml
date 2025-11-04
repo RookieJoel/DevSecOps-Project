@@ -9,7 +9,7 @@ on:
 env:
   PROJECT_ID: swdevprac
   REGION: asia-southeast1
-  REPO: cloud-run-source-deploy       
+  REPO: netflix     
   SERVICE: netflix                    
 
 jobs:
@@ -71,8 +71,7 @@ jobs:
           registry: ${{ env.REGION }}-docker.pkg.dev
           username: oauth2accesstoken
           password: ${{ steps.auth.outputs.access_token }}
-      - run: echo "${{ steps.auth.outputs.access_token }}" | head -c 20
-
+          
       - name: Build image
         env:
           IMAGE: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/${{ env.SERVICE }}:${{ github.sha }}
