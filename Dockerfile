@@ -1,4 +1,4 @@
-FROM node:18-alpine AS builder
+FROM 25-alpine3.21 AS builder
 WORKDIR /app
 COPY package.json yarn.lock ./
 RUN yarn install --frozen-lockfile
@@ -8,7 +8,7 @@ ENV VITE_APP_TMDB_V3_API_KEY=${TMDB_V3_API_KEY}
 ENV VITE_APP_API_ENDPOINT_URL="https://api.themoviedb.org/3"
 RUN yarn build
 
-FROM alpine:3.21.9
+FROM nginx:stable-alpine
 RUN apk update && apk upgrade --no-cache && \
     apk add --no-cache nginx ca-certificates
 WORKDIR /usr/share/nginx/html
