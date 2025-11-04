@@ -77,7 +77,9 @@ jobs:
           IMAGE: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/${{ env.SERVICE }}:${{ github.sha }}
         run: |
           echo "IMAGE=${IMAGE}"
-          docker build -t "${IMAGE}" .
+          docker build \
+          --build-arg TMDB_V3_API_KEY='${{ secrets.TMDB_V3_API_KEY }}' \
+          -t "${IMAGE}" .
 
       - name: Trivy Image Scan
         uses: aquasecurity/trivy-action@0.33.1
