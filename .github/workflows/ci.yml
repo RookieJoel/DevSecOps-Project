@@ -91,7 +91,9 @@ jobs:
           exit-code: '1'
 
       - name: Push image to gar
-        run: docker push "$IMAGE"
+        run: |
+          IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/${{ env.SERVICE }}:${{ github.sha }}"
+          docker push "$IMAGE"
 
       - name: Upload depcheck report
         uses: actions/upload-artifact@v4
